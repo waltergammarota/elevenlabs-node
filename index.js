@@ -61,19 +61,25 @@ const textToSpeech = async (
         "Content-Type": "application/json",
       },
       responseType: "stream",
-    });
+    }).then(response => {
+      const writeStream = fs.createWriteStream(fileName, { flags: 'w' });
 
-    response.data.pipe(fs.createWriteStream(fileName));
+      response.data.pipe(writeStream);
 
-    const writeStream = fs.createWriteStream(fileName);
-    response.data.pipe(writeStream);
+      return new Promise((resolve, reject) => {
+        writeStream.on('finish', resolve);
+        writeStream.on('error', (writeStreamError) => {
+          fs.unlink(fileName, () => reject(writeStreamError)); // Elimina el archivo si hay un error
+        });
+      });
+    })
+      .then(() => {
+        console.log('Archivo descargado y escrito con éxito.');
+      })
+      .catch(error => {
+        console.error('Se produjo un error al escribir el archivo:', error);
+      });
 
-    return new Promise((resolve, reject) => {
-      const responseJson = { status: "ok", fileName: fileName };
-      writeStream.on('finish', () => resolve(responseJson));
-    
-      writeStream.on('error', reject);
-    });
   } catch (error) {
     console.log(error);
   }
@@ -105,6 +111,7 @@ const textToSpeechStream = async (
   textInput,
   stability,
   similarityBoost,
+  style,
   modelId,
   responseType
 ) => {
@@ -116,6 +123,7 @@ const textToSpeechStream = async (
     const voiceURL = `${elevenLabsAPI}/text-to-speech/${voiceID}/stream`;
     const stabilityValue = stability ? stability : 0;
     const similarityBoostValue = similarityBoost ? similarityBoost : 0;
+    const styleValue = style ? style : 0;
 
     const response = await axios({
       method: "POST",
@@ -125,6 +133,8 @@ const textToSpeechStream = async (
         voice_settings: {
           stability: stabilityValue,
           similarity_boost: similarityBoostValue,
+          style: styleValue,
+          use_speaker_boost: true
         },
         model_id: modelId ? modelId : undefined,
       },
